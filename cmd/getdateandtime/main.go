@@ -1,7 +1,7 @@
 package main
 
 import (
-	tad "github.com/rileys-trash-can/timeanddate"
+	tad "github.com/derzombiiie/timeanddate"
 
 	"log"
 	"os"
@@ -37,7 +37,7 @@ func main() {
 	result := r[0]
 
 	log.Printf("Getting time for %s which is in %s/%s (%s)",
-		result.District, result.Country, result.State, result.CountryCode)
+		result.City, result.Country, result.State, result.CountryCode)
 
 	data, err := tad.Get(result.Path)
 	if err != nil {

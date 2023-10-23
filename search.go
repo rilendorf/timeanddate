@@ -19,7 +19,8 @@ type SearchResult struct {
 	Unused1     string // e.g. 5
 	CountryCode string // e.g. de
 	Unused2     string // e.g. b
-	District    string // e.g. Bezirk Spandau (fifth-order administrative division)
+	City        string // e.g. Bezirk Spandau (fifth-order administrative division)
+
 	State       string // e.g. Berlin
 	Country     string // e.g. Germany
 	CountryFlag string // e.g. //c.tadst.com/gfx/n/fl/16/de.png
@@ -71,7 +72,7 @@ func (c *Client) Search(query string) (r []SearchResult, err error) {
 			Unused1:     row[1],
 			CountryCode: row[2],
 			Unused2:     row[3],
-			District:    row[4],
+			City:        row[4],
 			State:       row[5],
 			Country:     row[6],
 			CountryFlag: row[7],
