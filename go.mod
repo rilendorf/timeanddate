@@ -1,4 +1,4 @@
-module github.com/rileys-trash-can/timeanddate
+module github.com/derzombiiie/timeanddate
 
 go 1.21.2
 
