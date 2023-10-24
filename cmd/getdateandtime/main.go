@@ -46,10 +46,11 @@ func main() {
 
 	log.Printf("Country:    %s", data.Country)
 	log.Printf("State:      %s", data.State)
+	log.Printf("Province:   %s", data.Province)
 	log.Printf("Position:   %s", data.Position)
 	log.Printf("Elevation:  %d meters", data.Elevation)
 	log.Printf("Currency:   %s", data.Currency)
-	log.Printf("Language:   %s", data.Language)
+	log.Printf("Language:   %s", strings.Join(data.Languages, " and "))
 	log.Printf("AccessCode: %s", data.AccessCode)
 	log.Printf("---")
 	log.Printf("Time:       %s", data.Time)

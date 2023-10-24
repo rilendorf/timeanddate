@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"log"
 )
 
 var (
@@ -18,16 +20,22 @@ var (
 type deserializeErr struct {
 	Err  error
 	Part string
+
+	Data string
 }
 
 func (e *deserializeErr) Error() string {
+	if e.Data != "" {
+		return "deserialize " + e.Part + ": " + e.Err.Error() + " (" + e.Data + ")"
+	}
 	return "deserialize " + e.Part + ": " + e.Err.Error()
 }
 
-func wrap(err error, part string) error {
+func wrap(err error, part string, data string) error {
 	return &deserializeErr{
 		Err:  err,
 		Part: part,
+		Data: data,
 	}
 }
 
@@ -49,7 +57,11 @@ func (c *Position) UnmarshalText(d []byte) error {
 	var LatDeg, LatMin, LonDeg, LonMin float32
 	var LatDir, LonDir string
 
-	_, err := fmt.Sscanf(string(d), "%f°%f'%s / %f°%f'%s",
+	str := strings.ReplaceAll(string(d), "°", " ")
+	str = strings.ReplaceAll(str, "'", " ")
+
+	println(str)
+	_, err := fmt.Sscanf(str, "%f %f %s / %f %f %s",
 		&LatDeg, &LatMin, &LatDir,
 		&LonDeg, &LonMin, &LonDir,
 	)
@@ -78,15 +90,18 @@ type Currency struct {
 
 // Euro (EUR)
 func (c *Currency) UnmarshalText(d []byte) error {
-	_, err := fmt.Sscanf(string(d), "%s (%s",
-		&c.Name, &c.Code,
-	)
+	spl := strings.SplitN(string(d), " (", 2)
 
-	if len(c.Code) > 1 {
-		c.Code = c.Code[:len(c.Code)-1]
+	if len(spl) != 2 {
+		return ErrDeserialize
 	}
 
-	return err
+	c.Name = spl[0]
+	if len(spl[1]) > 1 {
+		c.Code = spl[1][:len(spl[1])-1]
+	}
+
+	return nil
 }
 
 func (s *Currency) String() string {
@@ -104,15 +119,18 @@ type State struct {
 
 // Bavaria (BY)
 func (c *State) UnmarshalText(d []byte) error {
-	_, err := fmt.Sscanf(string(d), "%s (%s",
-		&c.Name, &c.Code,
-	)
+	spl := strings.SplitN(string(d), " (", 2)
 
-	if len(c.Code) > 2 {
-		c.Code = c.Code[:2]
+	c.Name = spl[0]
+	if len(spl) != 2 {
+		return nil
 	}
 
-	return err
+	if len(spl[1]) > 1 {
+		c.Code = spl[1][:len(spl[1])-1]
+	}
+
+	return nil
 }
 
 func (s *State) String() string {
@@ -220,10 +238,11 @@ func UnmarshalMonth(s string) time.Month {
 type TimeAndDate struct {
 	Country    string    // e.g. Germany
 	State      *State    // e.g. Bavaria (BY)
+	Province   *State    // e.g. Bavaria (BY)
 	Position   *Position // e.g. 49°58'N / 9°09'E
 	Elevation  int       // in meters
 	Currency   *Currency // e.g. Euro (EUR)
-	Language   string    // e.g. German
+	Languages  []string  // e.g. German
 	AccessCode string    //  e.g. +49
 
 	Time *Time // e.g. 12:54:53
@@ -253,65 +272,116 @@ func (c *Client) Get(path string) (r *TimeAndDate, err error) {
 		return
 	}
 
-	data := [7]string{}
+	// 0: key, 1: value
+	var data [][2]string
 
+	// content
 	doc.Find("table.table.table--left.table--inner-borders-rows").Each(func(i int, s *goquery.Selection) {
-		s.Find("td").Each(func(i int, s *goquery.Selection) {
+		// keys
+		keys := s.Find("th")
+		data = make([][2]string, len(keys.Nodes))
+		keys.Each(func(i int, s *goquery.Selection) {
 			if len(data) > i { // boundscheck
-				data[i] = s.Text()
+				data[i][0] = s.Text()
+			}
+		})
+
+		// values
+		values := s.Find("td")
+
+		values.Each(func(i int, s *goquery.Selection) {
+			if len(data) > i { // boundscheck
+				data[i][1] = s.Text()
 			}
 		})
 	})
 
 	tad := new(TimeAndDate)
-	tad.Country = data[0]
-	tad.State = new(State)
-	err = tad.State.UnmarshalText([]byte(data[1]))
-	if err != nil {
-		return r, wrap(err, "state")
-	}
+	var value string
 
-	tad.Position = new(Position)
-	err = tad.Position.UnmarshalText([]byte(data[2]))
-	if err != nil {
-		return r, wrap(err, "position")
-	}
+	for i := 0; i < len(data); i++ {
+		value = data[i][1]
 
-	_, err = fmt.Sscanf(data[3], "%d m", &tad.Elevation)
-	if err != nil {
-		return r, wrap(err, "elevation")
-	}
+		switch data[i][0] { // keys
 
-	tad.Currency = new(Currency)
-	err = tad.Currency.UnmarshalText([]byte(data[4]))
-	if err != nil {
-		return r, wrap(err, "currency")
-	}
+		case "Country: ":
+			tad.Country = value
+			break
 
-	tad.Language = data[5]
-	tad.AccessCode = data[6]
+		case "State: ":
+			tad.State = new(State)
+			err = tad.State.UnmarshalText([]byte(value))
+			if err != nil {
+				return r, wrap(err, "state", value)
+			}
+			break
+
+		case "Lat/Long: ":
+			tad.Position = new(Position)
+			err = tad.Position.UnmarshalText([]byte(value))
+			if err != nil {
+				return r, wrap(err, "position", value)
+			}
+			break
+
+		case "Elevation: ":
+			_, err = fmt.Sscanf(value, "%d m", &tad.Elevation)
+			if err != nil {
+				return r, wrap(err, "elevation", value)
+			}
+			break
+
+		case "Currency: ":
+			tad.Currency = new(Currency)
+			err = tad.Currency.UnmarshalText([]byte(value))
+			if err != nil {
+				return r, wrap(err, "currency", value)
+			}
+			break
+
+		case "Languages: ":
+			// can have multible (e.g. Vancouver)
+			tad.Languages = strings.Split(value, ", ")
+			break
+
+		case "Country Code: ":
+			tad.AccessCode = value
+			break
+
+		case "Province: ":
+			tad.Province = new(State)
+			err = tad.Province.UnmarshalText([]byte(value))
+			if err != nil {
+				return r, wrap(err, "state", value)
+			}
+			break
+
+		default:
+			log.Printf("unhandled key '%s'", data[i][0])
+		}
+	}
 
 	// get time & date:
 	timeSel := doc.Find("span#ct.h1")
 	if len(timeSel.Nodes) == 0 {
-		return r, wrap(ErrDeserialize, "time")
+		return r, wrap(ErrDeserialize, "time", "len0")
 	}
 
 	tad.Time = new(Time)
 	err = tad.Time.UnmarshalText([]byte(timeSel.Text()))
 	if err != nil {
-		return r, wrap(err, "time")
+		return r, wrap(err, "time", timeSel.Text())
 	}
 
 	dateSel := doc.Find("span#ctdat")
 	if len(dateSel.Nodes) == 0 {
-		return r, wrap(ErrDeserialize, "date")
+		return r, wrap(ErrDeserialize, "date", "len0")
 	}
 
 	tad.Date = new(Date)
 	err = tad.Date.UnmarshalText([]byte(dateSel.Text()))
 	if err != nil {
-		return r, wrap(err, "date")
+		return r, wrap(err, "date", dateSel.Text())
 	}
 
 	return tad, err

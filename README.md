@@ -23,4 +23,4 @@ working:
 		- Time Zone
 		- DST Changes
 		- Sun & Moon 
-	 
+	- only works for german cities as format is different for other countries (yay)
