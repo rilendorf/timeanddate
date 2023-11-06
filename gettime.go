@@ -60,7 +60,6 @@ func (c *Position) UnmarshalText(d []byte) error {
 	str := strings.ReplaceAll(string(d), "°", " ")
 	str = strings.ReplaceAll(str, "'", " ")
 
-	println(str)
 	_, err := fmt.Sscanf(str, "%f %f %s / %f %f %s",
 		&LatDeg, &LatMin, &LatDir,
 		&LonDeg, &LonMin, &LonDir,
