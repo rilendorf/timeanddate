@@ -1,4 +1,4 @@
-module github.com/derzombiiie/timeanddate
+module github.com/rilendorf/timeanddate
 
 go 1.21.2
 

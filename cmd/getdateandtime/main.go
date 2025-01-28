@@ -1,7 +1,7 @@
 package main
 
 import (
-	tad "github.com/derzombiiie/timeanddate"
+	tad "github.com/rilendorf/timeanddate"
 
 	"log"
 	"os"
